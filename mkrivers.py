@@ -14,6 +14,7 @@ import argparse
 import requests
 import threading
 import feedparser
+from datetime import datetime
 from collections import deque
 
 logging.basicConfig(
@@ -94,6 +95,25 @@ class WebFeed(object):
             else:
                 return '|'.join([entry.get('title', ''), entry.get('link', '')])
 
+        def entry_timestamp(entry):
+            for key in ['published_parsed', 'updated_parsed', 'created_parsed']:
+                if not entry.get(key):
+                    continue
+
+                obj = entry[key][:6]
+                reported = arrow.get(datetime(*obj))
+
+                # Return Jan 1, 1970 if item pubDate is pre-2000
+                if reported < arrow.Arrow(2000, 1, 1):
+                    return arrow.Arrow(1970, 1, 1)
+
+                # Return reported pubDate only if in the past (i.e., nothing in future)
+                elif reported < arrow.utcnow():
+                    return reported
+
+            # If all else fails, return current UTC as pubDate
+            return arrow.utcnow()
+
         update_items = []
         update_obj = {
             'feedUrl': self.url,
@@ -108,10 +128,12 @@ class WebFeed(object):
             if fingerprint in self.history:
                 continue
 
+            pub_date = entry_timestamp(entry)
+
             update_items.append({
                 'body': '',
                 'permaLink': '',
-                'pubDate': '',
+                'pubDate': pub_date.format(RIVER_TIME_FMT),
                 'title': entry.get('title', ''),
                 'link': entry.get('link', ''),
             })
