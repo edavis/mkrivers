@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logging.getLogger('requests').setLevel(logging.WARNING)
 
-FEED_CHECK_INITIAL = (5, 15*60)    # min/max seconds before first check
+FEED_CHECK_INITIAL = (5, 5*60)     # min/max seconds before first check
 FEED_CHECK_REGULAR = (5*60, 30*60) # min/max seconds for next check, after first check
 FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
 WATCH_INPUT_INTERVAL = 15*60       # check source file every N seconds
