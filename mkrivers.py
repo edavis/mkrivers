@@ -1,0 +1,312 @@
+#!/usr/bin/env python
+
+import os
+import glob
+import json
+import time
+import arrow
+import urllib
+import socket
+import random
+import logging
+import cPickle
+import argparse
+import requests
+import threading
+import feedparser
+from collections import deque
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(asctime)s] [%(levelname)s] %(message)s',
+)
+logging.getLogger('requests').setLevel(logging.WARNING)
+
+FEED_CHECK_INITIAL = (5, 15*60)    # min/max seconds before first check
+FEED_CHECK_REGULAR = (5*60, 30*60) # min/max seconds for next check, after first check
+FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
+WATCH_INPUT_INTERVAL = 15*60       # check source file every N seconds
+RIVER_UPDATES_LIMIT = 300          # number of feed updates to include
+RIVER_CHAR_LIMIT = 280             # character limit in item description
+RIVER_WRITE_INTERVAL = 15          # write river files every N seconds
+RIVER_CACHE_DIR = '.mkrivers'      # where to store feed history
+RIVER_FIRST_ITEMS_LIMIT = 5        # number of items to include on first run
+RIVER_TIME_FMT = 'ddd, DD MMMM YYYY HH:mm:ss Z'
+
+class WebFeed(object):
+    def __init__(self, url, source):
+        self.url = url
+        self.source = source
+        self.request_headers = {}
+        self.checks = 0
+        self.history = self.read_pickle()
+
+    def check(self):
+        try:
+            response = self.request_feed()
+        except (requests.exceptions.RequestException, socket.error) as e:
+            self.log('could not retrieve feed: %s' % e, 'error')
+        else:
+            self.process_response(response)
+        finally:
+            self.checks += 1
+            self.schedule_next_check()
+            self.write_pickle(self.history)
+
+    def request_feed(self):
+        "Make HTTP request for feed URL"
+        default_headers = {
+            'User-Agent': 'mkrivers/UNRELEASED (https://github.com/edavis/mkrivers)',
+            'From': 'eric@davising.com',
+        }
+
+        headers = {}
+        headers.update(default_headers)
+        headers.update(self.request_headers)
+
+        # self.log('requesting feed (headers = %r)' % self.request_headers)
+
+        resp = requests.get(self.url, headers=headers, timeout=FEED_REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        return resp
+
+    def process_response(self, response):
+        parsed = feedparser.parse(response.text)
+
+        def entry_fingerprint(entry):
+            if entry.get('guid'):
+                return entry.get('guid')
+            else:
+                return '|'.join([entry.get('title', ''), entry.get('link', '')])
+
+        update_items = []
+        update_obj = {
+            'feedUrl': self.url,
+            'feedTitle': parsed.feed.get('title', 'Default Title'),
+            'feedDescription': parsed.feed.get('description', ''),
+            'websiteUrl': parsed.feed.get('link', ''),
+            'whenLastUpdate': arrow.utcnow().format(RIVER_TIME_FMT),
+        }
+
+        for entry in parsed.entries:
+            fingerprint = entry_fingerprint(entry)
+            if fingerprint in self.history:
+                continue
+
+            update_items.append({
+                'body': '',
+                'permaLink': '',
+                'pubDate': '',
+                'title': entry.get('title', ''),
+                'link': entry.get('link', ''),
+            })
+
+            self.history.appendleft(fingerprint)
+
+        if update_items:
+            self.log('found %s new items' % len(update_items))
+
+            if self.checks == 0:
+                update_items = update_items[:RIVER_FIRST_ITEMS_LIMIT]
+
+            for item in reversed(update_items):
+                with self.source.counter_lock:
+                    self.source.counter += 1
+
+                item['id'] = str(self.source.counter).zfill(7)
+
+            update_obj['item'] = update_items
+            self.source.struct.appendleft(update_obj)
+            self.source.dirty = True
+        else:
+            self.log('no new items found')
+
+    def schedule_next_check(self):
+        "Schedule feed for next check"
+        interval = random.randint(*FEED_CHECK_REGULAR)
+        new_timer = create_timer(self.check, interval)
+        self.source.timers[self.url] = new_timer
+
+    ###########################################################################
+    # Pickle utilities
+
+    def pickle_path(self):
+        "Where to store pickle object for this feed"
+        if not os.path.isdir(RIVER_CACHE_DIR):
+            os.makedirs(RIVER_CACHE_DIR)
+
+        fname = urllib.quote(self.url, safe='')
+        return os.path.join(RIVER_CACHE_DIR, fname) + '.pkl'
+
+    def write_pickle(self, obj):
+        with open(self.pickle_path(), 'w') as fp:
+            return cPickle.dump(obj, fp)
+
+    def read_pickle(self):
+        "Return history from pickle object or create it anew"
+        try:
+            with open(self.pickle_path()) as fp:
+                return cPickle.load(fp)
+        except (IOError, cPickle.UnpicklingError):
+            return deque(maxlen=RIVER_UPDATES_LIMIT)
+
+    def log(self, msg, level='debug'):
+        msg = ('[%-50s] ' % self.url[:50]) + msg
+        func = getattr(logging, level)
+        func(msg)
+
+class Source(object):
+    counter = 0
+
+    def __init__(self, fname, output):
+        self.fname = fname
+        self.output = output
+        self.urls = list(self.read_urls())
+        self.timers = {}
+        self.struct = self.read_pickle()
+        self.dirty = False
+        self.counter_lock = threading.Lock()
+
+        create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+
+    def read_urls(self):
+        "Return feed URLs in source input"
+        with open(self.fname) as fp:
+            for url in fp:
+                url = url.strip()
+                if not url or url.startswith('#'): continue
+                yield url
+
+    def start_feeds(self):
+        for url in self.urls:
+            self.start_feed(url)
+
+    def start_feed(self, url):
+        "Start monitoring feed"
+        feed = WebFeed(url, self)
+        interval = random.randint(*FEED_CHECK_INITIAL)
+        logging.debug('start_feed: starting %s (%s seconds)' % (url, interval))
+        timer = create_timer(feed.check, interval)
+        self.timers[url] = timer
+
+    def stop_feed(self, url):
+        "Stop monitoring feed"
+        logging.debug('stop_feed: stopping %s' % url)
+        self.timers[url].cancel()
+        del self.timers[url]
+
+    def watch_input(self):
+        "Re-scan source input for added/removed feeds"
+        logging.debug('watch_input: re-scanning %s for new urls' % self.fname)
+        prev_urls = set(self.urls)
+        new_urls = set(self.read_urls())
+        added_urls = filter(lambda url: url not in prev_urls, new_urls)
+        removed_urls = filter(lambda url: url not in new_urls, prev_urls)
+
+        if added_urls:
+            logging.debug('added_urls = %r' % added_urls)
+            for url in added_urls:
+                self.start_feed(url)
+
+        if removed_urls:
+            logging.debug('removed_urls = %r' % removed_urls)
+            for url in removed_urls:
+                self.stop_feed(url)
+
+        self.urls = list(new_urls)
+
+        create_timer(self.watch_input, WATCH_INPUT_INTERVAL)
+
+    def write_river(self):
+        "Generate river.js file"
+
+        if not self.dirty:
+            create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+            return
+
+        if not os.path.isdir(os.path.dirname(self.output)):
+            os.makedirs(os.path.dirname(self.output))
+
+        obj = {
+            'updatedFeeds': {
+                'updatedFeed': list(self.struct),
+            },
+            'metadata': {
+                'docs': 'http://riverjs.org/',
+                'secs': '',
+                'version': '3',
+                'whenGMT': arrow.utcnow().format(RIVER_TIME_FMT),
+                'whenLocal': arrow.now().format(RIVER_TIME_FMT),
+            },
+        }
+
+        with open(self.output, 'w') as fp:
+            fp.write('onGetRiverStream(')
+            json.dump(obj, fp, indent=2, sort_keys=True)
+            fp.write(')\n')
+
+            fp.flush()
+            os.fsync(fp.fileno())
+
+        self.write_pickle(self.struct)
+        self.dirty = False
+        create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+
+    ###########################################################################
+    # Pickle utilities
+
+    def pickle_path(self):
+        "Where to store pickle object for this river"
+        if not os.path.isdir(RIVER_CACHE_DIR):
+            os.makedirs(RIVER_CACHE_DIR)
+
+        fname = urllib.quote(self.output, safe='')
+        return os.path.join(RIVER_CACHE_DIR, fname) + '.pkl'
+
+    def write_pickle(self, obj):
+        with open(self.pickle_path(), 'w') as fp:
+            return cPickle.dump(obj, fp)
+
+    def read_pickle(self):
+        try:
+            with open(self.pickle_path()) as fp:
+                return cPickle.load(fp)
+        except (IOError, cPickle.UnpicklingError):
+            return deque(maxlen=RIVER_UPDATES_LIMIT)
+
+def create_timer(func, interval):
+    "Return daemonized Timer object"
+    t = threading.Timer(interval, func)
+    t.daemon = True
+    t.start()
+    return t
+
+def river_output(filename, output, suffix='.js'):
+    "Return river.js file path from input filename."
+    b = os.path.basename(filename)
+    b, _ = os.path.splitext(b)
+    return os.path.join(output, b) + suffix
+
+def main(args):
+    for fname in glob.iglob(args.input + '/*.txt'):
+        output = river_output(fname, args.output)
+        s = Source(fname, output)
+        logging.debug('main: %s has %d feeds' % (fname, len(s.urls)))
+        s.start_feeds()
+        create_timer(s.watch_input, WATCH_INPUT_INTERVAL)
+
+    logging.debug('main: entering main loop')
+
+    while threading.active_count() > 0:
+        try:
+            time.sleep(0.01)
+        except KeyboardInterrupt:
+            print '\nQuitting...'
+            raise SystemExit
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--output')
+    parser.add_argument('input')
+    args = parser.parse_args()
+    main(args)
