@@ -64,13 +64,28 @@ class WebFeed(object):
         headers.update(default_headers)
         headers.update(self.request_headers)
 
-        # self.log('requesting feed (headers = %r)' % self.request_headers)
+        self.log('requesting feed (headers = %r)' % self.request_headers)
 
-        resp = requests.get(self.url, headers=headers, timeout=FEED_REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        return resp
+        try:
+            resp = requests.get(self.url, headers=headers, timeout=FEED_REQUEST_TIMEOUT)
+            resp.raise_for_status()
+        except (requests.exceptions.RequestException, socket.error):
+            raise
+        else:
+            self.request_headers.update({
+                'If-Modified-Since': resp.headers.get('last-modified'),
+            })
+
+            if resp.status_code == 304:
+                return
+
+            return resp
 
     def process_response(self, response):
+        if response is None:
+            self.log('feed returned 304, skipping')
+            return
+
         parsed = feedparser.parse(response.text)
 
         def entry_fingerprint(entry):
