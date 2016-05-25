@@ -2,6 +2,13 @@
 
 Generate river.js files from lists of feed URLs
 
+## Install
+
+$ git clone https://github.com/edavis/mkrivers
+$ pip install -r mkrivers/requirements.pin
+
+You should be able to figure out the rest.
+
 ## Quick start
 
 $ mkdir input/ output/
