@@ -23,6 +23,8 @@ logging.basicConfig(
 )
 logging.getLogger('requests').setLevel(logging.WARNING)
 
+__version__ = '0.1'
+
 FEED_CHECK_INITIAL = (5, 5*60)     # min/max seconds before first check
 FEED_CHECK_REGULAR = (5*60, 30*60) # min/max seconds for next check, after first check
 FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
@@ -57,7 +59,7 @@ class WebFeed(object):
     def request_feed(self):
         "Make HTTP request for feed URL"
         default_headers = {
-            'User-Agent': 'mkrivers/UNRELEASED (https://github.com/edavis/mkrivers)',
+            'User-Agent': 'mkrivers/%s (https://github.com/edavis/mkrivers)' % __version__,
             'From': 'eric@davising.com',
         }
 
