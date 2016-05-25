@@ -301,7 +301,7 @@ class Source(object):
 
         self.write_pickle(self.struct)
         self.dirty = False
-        create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+        self.misc_timers['write_river'] = create_timer(self.write_river, RIVER_WRITE_INTERVAL)
 
     ###########################################################################
     # Pickle utilities
