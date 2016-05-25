@@ -1,0 +1,42 @@
+# mkrivers
+
+Generate river.js files from lists of feed URLs
+
+## Quick start
+
+$ mkdir input/ output/
+$ cat > input/news.txt
+http://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
+http://feeds.feedburner.com/TheAtlanticWire
+http://feeds.theguardian.com/theguardian/world/usa/rss
+http://feeds.reuters.com/reuters/topNews
+http://news.yahoo.com/rss/
+^D
+$ mkrivers.py -o output/ input/
+
+After running for a bit, you'll have a file ("output/news.js") that
+you can rig up to be read by any library that understands the river.js
+format.
+
+## Changelog
+
+- v0.2: Give each source its own cache
+
+  Previously, all feeds from all sources used a common cache to track
+  already seen items. This caused a feed in multiple sources to only
+  have new items reported in the source that crawled it first.
+
+  Now, each source creates a sub-directory within RIVER_CACHE_DIR and
+  individual feed caches are stored within it.
+
+- v0.1: Initial release
+
+## TODO
+- track status codes (feeds with high failure rate and N threshold of requests should be dropped)
+- make it easy to create HTML pages
+- customize riverBrowser.js
+- include text body
+- can pass in a remote source list
+- when pass dir for source input, also check for _new_ text files
+- track counter in pickle, too
+- fix SSL errors
