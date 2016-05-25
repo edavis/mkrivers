@@ -161,7 +161,7 @@ class WebFeed(object):
     def schedule_next_check(self):
         "Schedule feed for next check"
         interval = random.randint(*FEED_CHECK_REGULAR)
-        new_timer = create_timer(self.check, interval)
+        new_timer = create_timer(self.check, interval, self.url)
         self.source.timers[self.url] = new_timer
 
     ###########################################################################
@@ -204,7 +204,10 @@ class Source(object):
         self.dirty = False
         self.counter_lock = threading.Lock()
 
-        create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+        self.misc_timers = {
+            'write_river': create_timer(self.write_river, RIVER_WRITE_INTERVAL),
+            'watch_input': create_timer(self.watch_input, WATCH_INPUT_INTERVAL),
+        }
 
     def read_urls(self):
         "Return feed URLs in source input"
@@ -218,12 +221,21 @@ class Source(object):
         for url in self.urls:
             self.start_feed(url)
 
+    def shutdown(self):
+        while threading.active_count() > 1:
+            for thread in threading.enumerate():
+                try:
+                    thread.cancel()
+                except AttributeError: # MainThread has no cancel
+                    pass
+
+            time.sleep(1)
+
     def start_feed(self, url):
         "Start monitoring feed"
         feed = WebFeed(url, self)
         interval = random.randint(*FEED_CHECK_INITIAL)
-        logging.debug('start_feed: starting %s (%s seconds)' % (url, interval))
-        timer = create_timer(feed.check, interval)
+        timer = create_timer(feed.check, interval, url)
         self.timers[url] = timer
 
     def stop_feed(self, url):
@@ -252,13 +264,13 @@ class Source(object):
 
         self.urls = list(new_urls)
 
-        create_timer(self.watch_input, WATCH_INPUT_INTERVAL)
+        self.misc_timers['watch_input'] = create_timer(self.watch_input, WATCH_INPUT_INTERVAL)
 
     def write_river(self):
         "Generate river.js file"
 
         if not self.dirty:
-            create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+            self.misc_timers['write_river'] = create_timer(self.write_river, RIVER_WRITE_INTERVAL)
             return
 
         if not os.path.isdir(os.path.dirname(self.output)):
@@ -311,10 +323,11 @@ class Source(object):
         except (IOError, cPickle.UnpicklingError):
             return deque(maxlen=RIVER_UPDATES_LIMIT)
 
-def create_timer(func, interval):
+def create_timer(func, interval, name=None):
     "Return daemonized Timer object"
     t = threading.Timer(interval, func)
-    t.daemon = True
+    if name is not None:
+        t.name = name
     t.start()
     return t
 
@@ -325,21 +338,23 @@ def river_output(filename, output, suffix='.js'):
     return os.path.join(output, b) + suffix
 
 def main(args):
+    sources = []
+
     for fname in glob.iglob(args.input + '/*.txt'):
         output = river_output(fname, args.output)
         s = Source(fname, output)
         logging.debug('main: %s has %d feeds' % (fname, len(s.urls)))
         s.start_feeds()
-        create_timer(s.watch_input, WATCH_INPUT_INTERVAL)
+        sources.append(s)
 
-    logging.debug('main: entering main loop')
+    try:
+        while True:
+            time.sleep(10)
+    except (KeyboardInterrupt, SystemExit):
+        logging.debug('Shutting down...')
 
-    while threading.active_count() > 0:
-        try:
-            time.sleep(0.01)
-        except KeyboardInterrupt:
-            print '\nQuitting...'
-            raise SystemExit
+        for source in sources:
+            source.shutdown()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
