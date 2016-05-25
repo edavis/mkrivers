@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logging.getLogger('requests').setLevel(logging.WARNING)
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 FEED_CHECK_INITIAL = (5, 5*60)     # min/max seconds before first check
 FEED_CHECK_REGULAR = (5*60, 30*60) # min/max seconds for next check, after first check
@@ -171,11 +171,11 @@ class WebFeed(object):
 
     def pickle_path(self):
         "Where to store pickle object for this feed"
-        if not os.path.isdir(RIVER_CACHE_DIR):
-            os.makedirs(RIVER_CACHE_DIR)
+        if not os.path.isdir(self.source.source_cache):
+            os.makedirs(self.source.source_cache)
 
         fname = urllib.quote(self.url, safe='')
-        return os.path.join(RIVER_CACHE_DIR, fname) + '.pkl'
+        return os.path.join(self.source.source_cache, fname) + '.pkl'
 
     def write_pickle(self, obj):
         with open(self.pickle_path(), 'w') as fp:
@@ -202,6 +202,7 @@ class Source(object):
         self.output = output
         self.urls = list(self.read_urls())
         self.timers = {}
+        self.source_cache = os.path.join(RIVER_CACHE_DIR, path_basename(fname))
         self.struct = self.read_pickle()
         self.dirty = False
         self.counter_lock = threading.Lock()
@@ -308,11 +309,11 @@ class Source(object):
 
     def pickle_path(self):
         "Where to store pickle object for this river"
-        if not os.path.isdir(RIVER_CACHE_DIR):
-            os.makedirs(RIVER_CACHE_DIR)
+        if not os.path.isdir(self.source_cache):
+            os.makedirs(self.source_cache)
 
-        fname = urllib.quote(self.output, safe='')
-        return os.path.join(RIVER_CACHE_DIR, fname) + '.pkl'
+        fname = path_basename(self.output)
+        return os.path.join(self.source_cache, fname) + '.pkl'
 
     def write_pickle(self, obj):
         with open(self.pickle_path(), 'w') as fp:
@@ -332,6 +333,12 @@ def create_timer(func, interval, name=None):
         t.name = name
     t.start()
     return t
+
+def path_basename(p):
+    "Return the given path stripped of leading directories and its file extension"
+    b = os.path.basename(p)
+    b, _ = os.path.splitext(b)
+    return b
 
 def river_output(filename, output, suffix='.js'):
     "Return river.js file path from input filename."
