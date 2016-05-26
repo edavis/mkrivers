@@ -289,6 +289,7 @@ class Source(object):
                 'version': '3',
                 'whenGMT': arrow.utcnow().format(RIVER_TIME_FMT),
                 'whenLocal': arrow.now().format(RIVER_TIME_FMT),
+                'aggregator': 'mkrivers %s' % __version__,
             },
         }
 
