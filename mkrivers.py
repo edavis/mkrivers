@@ -8,6 +8,7 @@ import arrow
 import urllib
 import socket
 import random
+import bleach
 import logging
 import cPickle
 import argparse
@@ -115,6 +116,54 @@ class WebFeed(object):
             # If all else fails, return current UTC as pubDate
             return arrow.utcnow()
 
+        def clean_text(text, limit=RIVER_CHAR_LIMIT, suffix=u'\u2026'):
+            "Trim text to limit, adding suffix if text is longer than limit."
+            cleaned = bleach.clean(text, tags=[], strip=True).strip()
+
+            if len(cleaned) > limit:
+                # trim to first space rather than cutting a word off in the middle of it
+                cur_idx = limit - 1
+                cur_char = cleaned[cur_idx]
+                while cur_char != ' ':
+                    cur_idx -= 1
+                    cur_char = cleaned[cur_idx]
+
+                c = cleaned[:cur_idx].strip('.,')
+                return c + suffix
+            else:
+                return cleaned
+
+        def entry_text(entry):
+            "Populate the title and body, depending on the existence and value of the other."
+            obj = {}
+
+            if not entry.get('title') and not entry.get('description'):
+                return
+
+            elif entry.get('title') and entry.get('description'):
+                obj['title'] = entry.get('title')
+                if entry.get('title') != entry.get('description'):
+                    obj['body'] = entry.get('description')
+                else:
+                    obj['body'] = ''
+
+            elif not entry.get('title') and entry.get('description'):
+                obj = {
+                    'title': entry.get('description'),
+                    'body': '',
+                }
+
+            elif entry.get('title'):
+                obj = {
+                    'title': entry.get('title'),
+                    'body': '',
+                }
+
+            return {
+                'title': clean_text(obj['title']),
+                'body': clean_text(obj['body']),
+            }
+
         update_items = []
         update_obj = {
             'feedUrl': self.url,
@@ -130,14 +179,19 @@ class WebFeed(object):
                 continue
 
             pub_date = entry_timestamp(entry)
-
-            update_items.append({
-                'body': '',
+            obj = {
                 'permaLink': entry.get('guid', ''),
                 'pubDate': pub_date.format(RIVER_TIME_FMT),
-                'title': entry.get('title', ''),
                 'link': entry.get('link', ''),
-            })
+            }
+
+            text_info = entry_text(entry)
+            if text_info is not None:
+                obj.update(text_info)
+            else:
+                continue
+
+            update_items.append(obj)
 
             self.history.appendleft(fingerprint)
 
