@@ -60,7 +60,6 @@ class WebFeed(object):
         "Make HTTP request for feed URL"
         default_headers = {
             'User-Agent': 'mkrivers/%s (https://github.com/edavis/mkrivers)' % __version__,
-            'From': 'eric@davising.com',
         }
 
         headers = {}
