@@ -134,7 +134,7 @@ class WebFeed(object):
 
             update_items.append({
                 'body': '',
-                'permaLink': '',
+                'permaLink': entry.get('guid', ''),
                 'pubDate': pub_date.format(RIVER_TIME_FMT),
                 'title': entry.get('title', ''),
                 'link': entry.get('link', ''),
