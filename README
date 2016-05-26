@@ -25,10 +25,12 @@ format.
 
 ## Changelog
 
+- v0.4: Include body text from feed.
+
 - v0.3: Include `permaLink` in items and `aggregator` in
   metadata. Drop `From` request header.
 
-- v0.2: Give each source its own cache
+- v0.2: Give each source its own cache.
 
   Previously, all feeds from all sources used a common cache to track
   already seen items. This caused a feed in multiple sources to only
@@ -37,7 +39,7 @@ format.
   Now, each source creates a sub-directory within RIVER_CACHE_DIR and
   individual feed caches are stored within it.
 
-- v0.1: Initial release
+- v0.1: Initial release.
 
 ## TODO
 - track status codes (feeds with high failure rate and N threshold of requests should be dropped)
