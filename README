@@ -25,6 +25,9 @@ format.
 
 ## Changelog
 
+- v0.3: Include `permaLink` in items and `aggregator` in
+  metadata. Drop `From` request header.
+
 - v0.2: Give each source its own cache
 
   Previously, all feeds from all sources used a common cache to track
