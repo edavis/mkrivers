@@ -63,3 +63,7 @@ format.
 - can pass in a remote source list
 - when pass dir for source input, also check for _new_ text files
 - track counter in pickle, too
+- include guids in source cache too? to prevent same entry from two different feeds from appearing?
+- include callback system
+- add ability to insert images
+- add comments URL to feed updates
