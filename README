@@ -25,6 +25,13 @@ format.
 
 ## Changelog
 
+- v0.5: Fix SSL warnings and include source name when logging.
+
+  The ndg-httpsclient package was necessary for me to get HTTPS feeds
+  working on Python 2.7.3. Your mileage may vary.
+
+  Also, when logging feed fetch results, include the name of the source.
+
 - v0.4: Include body text from feed.
 
 - v0.3: Include `permaLink` in items and `aggregator` in
@@ -51,4 +58,3 @@ format.
 - can pass in a remote source list
 - when pass dir for source input, also check for _new_ text files
 - track counter in pickle, too
-- fix SSL errors
