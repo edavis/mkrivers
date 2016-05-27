@@ -282,7 +282,7 @@ class WebFeed(object):
         try:
             with open(self.pickle_path()) as fp:
                 return cPickle.load(fp)
-        except (IOError, cPickle.UnpicklingError):
+        except (EOFError, IOError, cPickle.UnpicklingError):
             return deque(maxlen=RIVER_UPDATES_LIMIT)
 
     def log(self, msg, level='debug'):
@@ -421,7 +421,7 @@ class Source(object):
         try:
             with open(self.pickle_path()) as fp:
                 return cPickle.load(fp)
-        except (IOError, cPickle.UnpicklingError):
+        except (EOFError, IOError, cPickle.UnpicklingError):
             return deque(maxlen=RIVER_UPDATES_LIMIT)
 
 def create_timer(func, interval, name=None):
