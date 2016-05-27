@@ -26,15 +26,15 @@ logging.getLogger('requests').setLevel(logging.WARNING)
 
 __version__ = '0.6'
 
-FEED_CHECK_INITIAL = (5, 5*60)     # min/max seconds before first check
-FEED_CHECK_REGULAR = (5*60, 30*60) # min/max seconds for next check, after first check
+FEED_CHECK_INITIAL = (5, 30*60)    # min/max seconds before first check
+FEED_CHECK_REGULAR = (15*60, 60*60) # min/max seconds for next check, after first check
 FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
-FEED_HEALTH_MIN_CHECKS = 10        # min checks before check_feed_health will examine the feed
+FEED_HEALTH_MIN_CHECKS = 2         # min checks before check_feed_health will examine the feed
 FEED_HEALTH_ERR_THRESHOLD = 0.8    # display warning if feed fails more than N percent of time
-WATCH_INPUT_INTERVAL = 15*60       # check source file every N seconds
+WATCH_INPUT_INTERVAL = 5*60        # check source file every N seconds
 RIVER_UPDATES_LIMIT = 300          # number of feed updates to include
 RIVER_CHAR_LIMIT = 280             # character limit in item description
-RIVER_WRITE_INTERVAL = 15          # write river files every N seconds
+RIVER_WRITE_INTERVAL = 60          # write river files every N seconds
 RIVER_CACHE_DIR = '.mkrivers'      # where to store feed history
 RIVER_FIRST_ITEMS_LIMIT = 5        # number of items to include on first run
 RIVER_TIME_FMT = 'ddd, DD MMMM YYYY HH:mm:ss Z'
