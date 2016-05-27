@@ -64,7 +64,7 @@ class WebFeed(object):
     def request_feed(self):
         "Make HTTP request for feed URL"
         default_headers = {
-            'User-Agent': 'mkrivers/%s (https://github.com/edavis/mkrivers)' % __version__,
+            'User-Agent': 'mkrivers/v%s (https://github.com/edavis/mkrivers)' % __version__,
         }
 
         headers = {}
@@ -386,7 +386,7 @@ class Source(object):
                 'version': '3',
                 'whenGMT': arrow.utcnow().format(RIVER_TIME_FMT),
                 'whenLocal': arrow.now().format(RIVER_TIME_FMT),
-                'aggregator': 'mkrivers %s' % __version__,
+                'aggregator': 'mkrivers v%s' % __version__,
             },
         }
 
