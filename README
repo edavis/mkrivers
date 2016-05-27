@@ -49,7 +49,6 @@ format.
 - v0.1: Initial release.
 
 ## TODO
-- track status codes (feeds with high failure rate and N threshold of requests should be dropped)
 - make it easy to create HTML pages
 - customize riverBrowser.js
   - maybe use a proper JS frontend library?
