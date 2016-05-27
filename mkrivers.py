@@ -16,7 +16,7 @@ import requests
 import threading
 import feedparser
 from datetime import datetime
-from collections import deque
+from collections import deque, Counter
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -29,6 +29,8 @@ __version__ = '0.5'
 FEED_CHECK_INITIAL = (5, 5*60)     # min/max seconds before first check
 FEED_CHECK_REGULAR = (5*60, 30*60) # min/max seconds for next check, after first check
 FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
+FEED_HEALTH_MIN_CHECKS = 10        # min checks before check_feed_health will examine the feed
+FEED_HEALTH_ERR_THRESHOLD = 0.8    # display warning if feed fails more than N percent of time
 WATCH_INPUT_INTERVAL = 15*60       # check source file every N seconds
 RIVER_UPDATES_LIMIT = 300          # number of feed updates to include
 RIVER_CHAR_LIMIT = 280             # character limit in item description
@@ -44,6 +46,7 @@ class WebFeed(object):
         self.request_headers = {}
         self.checks = 0
         self.history = self.read_pickle()
+        self.status_codes = Counter()
 
     def check(self):
         try:
@@ -54,6 +57,7 @@ class WebFeed(object):
             self.process_response(response)
         finally:
             self.checks += 1
+            self.check_feed_health()
             self.schedule_next_check()
             self.write_pickle(self.history)
 
@@ -71,6 +75,7 @@ class WebFeed(object):
 
         try:
             resp = requests.get(self.url, headers=headers, timeout=FEED_REQUEST_TIMEOUT)
+            self.status_codes[resp.status_code] += 1
             resp.raise_for_status()
         except (requests.exceptions.RequestException, socket.error):
             raise
@@ -212,6 +217,44 @@ class WebFeed(object):
             self.source.dirty = True
         else:
             self.log('no new items found')
+
+    def check_feed_health(self):
+        "Insert warning in river if feed appears broken"
+
+        if self.checks < FEED_HEALTH_MIN_CHECKS:
+            return
+
+        failures = sum(v for k, v in self.status_codes.items() if k >= 400)
+        err_rate = failures / float(self.checks)
+
+        if err_rate < FEED_HEALTH_ERR_THRESHOLD:
+            return
+
+        self.log('feed has error rate of %.3f' % err_rate, 'warn')
+
+        with self.source.counter_lock:
+            self.source.counter += 1
+
+        now = arrow.utcnow().format(RIVER_TIME_FMT)
+
+        update_obj = {
+            'feedUrl': self.url,
+            'feedTitle': 'mkrivers: feed health',
+            'feedDescription': '',
+            'websiteUrl': self.url,
+            'whenLastUpdate': now,
+            'item': [{
+                'id': str(self.source.counter).zfill(7),
+                'title': 'Error: %s' % self.url,
+                'body': 'Error rate of %.3f after %d checks' % (err_rate, self.checks),
+                'pubDate': now,
+                'permaLink': '',
+                'link': '',
+            }],
+        }
+
+        self.source.struct.appendleft(update_obj)
+        self.source.dirty = True
 
     def schedule_next_check(self):
         "Schedule feed for next check"
