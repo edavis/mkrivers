@@ -243,7 +243,7 @@ class WebFeed(object):
             return deque(maxlen=RIVER_UPDATES_LIMIT)
 
     def log(self, msg, level='debug'):
-        msg = ('[%-50s] ' % self.url[:50]) + msg
+        msg = ('[%s:%-50s] ' % (path_basename(self.source.fname), self.url[:50])) + msg
         func = getattr(logging, level)
         func(msg)
 
