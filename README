@@ -25,6 +25,12 @@ format.
 
 ## Changelog
 
+- v0.6: Notify user of broken feeds.
+
+  When a feed's request error rate (defined as number of 4xx and 5xx
+  HTTP status codes divided by its number of fetches) is greater than
+  the configured threshold (80%), display a notice in the river.
+
 - v0.5: Fix SSL warnings and include source name when logging.
 
   The ndg-httpsclient package was necessary for me to get HTTPS feeds
