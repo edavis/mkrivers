@@ -75,7 +75,13 @@ class WebFeed(object):
 
         try:
             resp = requests.get(self.url, headers=headers, timeout=FEED_REQUEST_TIMEOUT)
+        except (requests.exceptions.RequestException, socket.error):
+            self.status_codes[500] += 1
+            raise
+        else:
             self.status_codes[resp.status_code] += 1
+
+        try:
             resp.raise_for_status()
         except (requests.exceptions.RequestException, socket.error):
             raise
