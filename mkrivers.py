@@ -215,6 +215,7 @@ class WebFeed(object):
             self.log('found %s new items' % len(update_items))
 
             if self.checks == 0:
+                update_obj['feedTitle'] += '*'
                 update_items = update_items[:RIVER_FIRST_ITEMS_LIMIT]
 
             for item in reversed(update_items):
