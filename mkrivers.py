@@ -326,6 +326,7 @@ class Source(object):
         "Return feed URLs in source input"
         def is_skip_url(url): return not url or url.startswith('#')
         def is_include_url(url): return url.startswith('!')
+        def is_remove_url(url): return url.startswith('-')
 
         def read_remote_txt(url, urls):
             r = requests.get(url, timeout=5)
@@ -369,6 +370,8 @@ class Source(object):
 
                     if is_include_url(url):
                         process_remote(url[1:], urls)
+                    elif is_remove_url(url):
+                        urls.remove(url[1:])
                     else:
                         urls.add(url)
 
