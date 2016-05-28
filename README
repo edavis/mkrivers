@@ -25,6 +25,10 @@ format.
 
 ## Changelog
 
+- v0.7: Add/remove source lists as necessary and better handle feed errors.
+
+  Also includes a handful of small fixes/improvements.
+
 - v0.6: Notify user of broken feeds.
 
   When a feed's request error rate (defined as number of 4xx and 5xx
