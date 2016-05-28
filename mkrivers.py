@@ -17,6 +17,7 @@ import threading
 import feedparser
 from datetime import datetime
 from collections import deque, Counter
+from xml.etree import ElementTree as ET
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -31,8 +32,8 @@ FEED_CHECK_REGULAR = (15*60, 60*60) # min/max seconds for next check, after firs
 FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
 FEED_HEALTH_MIN_CHECKS = 2         # min checks before check_feed_health will examine the feed
 FEED_HEALTH_ERR_THRESHOLD = 0.8    # display warning if feed fails more than N percent of time
-WATCH_INPUT_INTERVAL = 5*60        # check source file every N seconds
-WATCH_DIR_INTERVAL = 10*60         # check input directory for source file updates every N seconds
+WATCH_INPUT_INTERVAL = 30*60       # check source file every N seconds
+WATCH_DIR_INTERVAL = 5*60          # check input directory for source file updates every N seconds
 RIVER_UPDATES_LIMIT = 300          # number of feed updates to include
 RIVER_CHAR_LIMIT = 280             # character limit in item description
 RIVER_WRITE_INTERVAL = 60          # write river files every N seconds
@@ -322,11 +323,57 @@ class Source(object):
 
     def read_urls(self):
         "Return feed URLs in source input"
-        with open(self.fname) as fp:
-            for url in fp:
+        def is_skip_url(url): return not url or url.startswith('#')
+        def is_include_url(url): return url.startswith('!')
+
+        def read_remote_txt(url, urls):
+            r = requests.get(url, timeout=5)
+            r.raise_for_status()
+            for url in r.iter_lines():
                 url = url.strip()
-                if not url or url.startswith('#'): continue
-                yield url
+                if is_skip_url(url): continue
+
+                if is_include_url(url):
+                    process_remote(url[1:], urls)
+                else:
+                    urls.add(url)
+
+        def read_remote_opml(url, urls):
+            r = requests.get(url, timeout=5)
+            r.raise_for_status()
+            doc = ET.fromstring(r.text)
+            head, body = doc
+            for outline in body.findall('outline'):
+                if outline.attrib.get('type', '') == 'include':
+                    iurl = outline.attrib.get('url')
+                    if iurl:
+                        process_remote(iurl, urls)
+                elif outline.attrib.get('xmlUrl'):
+                    xmlUrl = outline.attrib.get('xmlUrl')
+                    urls.add(xmlUrl)
+
+        def process_remote(url, urls):
+            if url.endswith('.txt'):
+                read_remote_txt(url, urls)
+            elif url.endswith('.opml'):
+                read_remote_opml(url, urls)
+
+        def read_local_txt(fname):
+            urls = set()
+
+            with open(fname) as fp:
+                for url in fp:
+                    url = url.strip()
+                    if is_skip_url(url): continue
+
+                    if is_include_url(url):
+                        process_remote(url[1:], urls)
+                    else:
+                        urls.add(url)
+
+            return urls
+
+        return read_local_txt(self.fname)
 
     def start_feeds(self):
         for url in self.urls:
