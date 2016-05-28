@@ -25,6 +25,22 @@ format.
 
 ## Changelog
 
+- v0.8: Add remote source list support.
+
+  You can now pass remote source lists and mkrivers will include any
+  feeds it contains.
+
+  To mark a URL as a remote source list in your local feed list, prefix
+  it with an exclamation point:
+
+  !http://www.remotesourcelist.com/list.txt
+  http://regularfeed.com/rss
+
+  If a remote source list contains another remote source list,
+  mkrivers will fetch it. Make sure there isn't a circular dependency
+  between remote source lists, otherwise mkrivers will go into an
+  infinite loop.
+
 - v0.7: Add/remove source lists as necessary and better handle feed errors.
 
   Also includes a handful of small fixes/improvements.
@@ -64,7 +80,6 @@ format.
   - maybe use a proper JS frontend library?
 - include easy way to navigate between different rivers
   - flask frontend with a JSON config file?
-- can pass in a remote source list
 - track counter in pickle, too
 - include guids in source cache too? to prevent same entry from two different feeds from appearing?
 - include callback system
