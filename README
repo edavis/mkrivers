@@ -65,7 +65,6 @@ format.
 - include easy way to navigate between different rivers
   - flask frontend with a JSON config file?
 - can pass in a remote source list
-- when pass dir for source input, also check for _new_ text files
 - track counter in pickle, too
 - include guids in source cache too? to prevent same entry from two different feeds from appearing?
 - include callback system
