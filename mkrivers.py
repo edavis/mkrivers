@@ -32,6 +32,7 @@ FEED_REQUEST_TIMEOUT = 15          # HTTP timeout when requesting feed
 FEED_HEALTH_MIN_CHECKS = 2         # min checks before check_feed_health will examine the feed
 FEED_HEALTH_ERR_THRESHOLD = 0.8    # display warning if feed fails more than N percent of time
 WATCH_INPUT_INTERVAL = 5*60        # check source file every N seconds
+WATCH_DIR_INTERVAL = 10*60         # check input directory for source file updates every N seconds
 RIVER_UPDATES_LIMIT = 300          # number of feed updates to include
 RIVER_CHAR_LIMIT = 280             # character limit in item description
 RIVER_WRITE_INTERVAL = 60          # write river files every N seconds
@@ -49,6 +50,9 @@ class WebFeed(object):
         self.status_codes = Counter()
 
     def check(self):
+        if self.source.stopped.is_set():
+            return
+
         try:
             response = self.request_feed()
         except (requests.exceptions.RequestException, socket.error) as e:
@@ -305,6 +309,7 @@ class Source(object):
         self.output = output
         self.urls = list(self.read_urls())
         self.timers = {}
+        self.stopped = threading.Event()
         self.source_cache = os.path.join(RIVER_CACHE_DIR, path_basename(fname))
         self.struct = self.read_pickle()
         self.dirty = False
@@ -328,14 +333,12 @@ class Source(object):
             self.start_feed(url)
 
     def shutdown(self):
-        while threading.active_count() > 1:
-            for thread in threading.enumerate():
-                try:
-                    thread.cancel()
-                except AttributeError: # MainThread has no cancel
-                    pass
-
-            time.sleep(1)
+        logging.debug('shutdown: stopping feeds for %s' % self.fname)
+        self.stopped.set() # set to True
+        for url, timer in self.timers.items():
+            timer.cancel()
+        self.misc_timers['write_river'].cancel()
+        self.misc_timers['watch_input'].cancel()
 
     def start_feed(self, url):
         "Start monitoring feed"
@@ -430,9 +433,9 @@ class Source(object):
         except (EOFError, IOError, cPickle.UnpicklingError):
             return deque(maxlen=RIVER_UPDATES_LIMIT)
 
-def create_timer(func, interval, name=None):
+def create_timer(func, interval, name=None, args=[], kwargs={}):
     "Return daemonized Timer object"
-    t = threading.Timer(interval, func)
+    t = threading.Timer(interval, func, args, kwargs)
     if name is not None:
         t.name = name
     t.start()
@@ -450,15 +453,28 @@ def river_output(filename, output, suffix='.js'):
     b, _ = os.path.splitext(b)
     return os.path.join(output, b) + suffix
 
-def main(args):
-    sources = []
+def load_sources(args, sources={}):
+    current_fnames = glob.glob(args.input + '/*.txt')
+    added_fnames = filter(lambda f: f not in sources, current_fnames)
+    removed_fnames = filter(lambda f: f not in current_fnames, sources)
 
-    for fname in glob.iglob(args.input + '/*.txt'):
+    for fname in added_fnames:
+        logging.debug('load_sources: adding %s' % fname)
         output = river_output(fname, args.output)
         s = Source(fname, output)
-        logging.debug('main: %s has %d feeds' % (fname, len(s.urls)))
         s.start_feeds()
-        sources.append(s)
+        sources[fname] = s
+
+    for fname in removed_fnames:
+        logging.debug('load_sources: removing %s' % fname)
+        s = sources[fname]
+        s.shutdown()
+        del sources[fname]
+
+    create_timer(load_sources, WATCH_DIR_INTERVAL, args=[args, sources])
+
+def main(args):
+    load_sources(args)
 
     try:
         while True:
@@ -466,8 +482,15 @@ def main(args):
     except (KeyboardInterrupt, SystemExit):
         logging.debug('Shutting down...')
 
-        for source in sources:
-            source.shutdown()
+        while threading.active_count() > 1:
+            for thread in threading.enumerate():
+                try:
+                    thread.cancel()
+                except AttributeError:
+                    pass
+
+            logging.debug('%d threads remaining...' % threading.active_count())
+            time.sleep(1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
