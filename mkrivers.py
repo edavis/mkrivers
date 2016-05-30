@@ -101,14 +101,9 @@ class WebFeed(object):
 
             return resp
 
-    def process_response(self, response):
-        if response is None:
-            self.log('feed returned 304, skipping')
-            return
-
-        parsed = feedparser.parse(response.text)
-        update_items = []
-        update_obj = {
+    def build_feed_portion(self, parsed):
+        "Build the feed portion of the river update"
+        return {
             'feedUrl': self.url,
             'feedTitle': parsed.feed.get('title', 'Default Title'),
             'feedDescription': parsed.feed.get('description', ''),
@@ -116,43 +111,60 @@ class WebFeed(object):
             'whenLastUpdate': arrow.utcnow().format(RIVER_TIME_FMT),
         }
 
+    def build_item_portion(self, entry):
+        obj = {
+            'permaLink': entry.get('guid', ''),
+            'link': entry.get('link', ''),
+            'pubDate': entry_timestamp(entry).format(RIVER_TIME_FMT),
+        }
+
+        text_info = entry_text(entry)
+        if text_info is not None:
+            obj.update(text_info)
+        else:
+            return
+
+        return obj
+
+    def process_response(self, response):
+        if response is None:
+            self.log('feed returned 304, skipping')
+            return
+
+        # TODO do bozo checking
+        parsed = feedparser.parse(response.text)
+
+        river_obj = self.build_feed_portion(parsed)
+        item_obj = []
+
         for entry in parsed.entries:
             fingerprint = entry_fingerprint(entry)
+
             if fingerprint in self.history:
                 continue
 
-            pub_date = entry_timestamp(entry)
-            obj = {
-                'permaLink': entry.get('guid', ''),
-                'pubDate': pub_date.format(RIVER_TIME_FMT),
-                'link': entry.get('link', ''),
-            }
-
-            text_info = entry_text(entry)
-            if text_info is not None:
-                obj.update(text_info)
-            else:
-                continue
-
-            update_items.append(obj)
+            item_ret = self.build_item_portion(entry)
+            if item_ret is not None:
+                item_obj.append(item_ret)
 
             self.history.appendleft(fingerprint)
 
-        if update_items:
-            self.log('found %s new items' % len(update_items))
+        if item_obj:
+            self.log('found %s new items' % len(item_obj))
 
             if self.checks == 0:
-                update_obj['feedTitle'] += '*'
-                update_items = update_items[:RIVER_FIRST_ITEMS_LIMIT]
+                river_obj['feedTitle'] += '*'
+                item_obj = item_obj[:RIVER_FIRST_ITEMS_LIMIT]
 
-            for item in reversed(update_items):
+            for item in reversed(item_obj):
                 with self.source.counter_lock:
                     self.source.counter += 1
 
                 item['id'] = str(self.source.counter).zfill(7)
 
-            update_obj['item'] = update_items
-            self.source.struct.appendleft(update_obj)
+            river_obj['item'] = item_obj
+
+            self.source.struct.appendleft(river_obj)
             self.source.dirty = True
         else:
             self.log('no new items found')
