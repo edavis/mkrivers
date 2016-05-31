@@ -25,6 +25,30 @@ format.
 
 ## Changelog
 
+- v0.9: Add callback system.
+
+  Callbacks can be used to do some feed-specific processing on new
+  river items.
+
+  Here's an example. Put something like this in `callbacks.py`:
+
+    import uuid
+
+    def change_id_to_uuid(url, entry, river_item):
+      river_item['id'] = str(uuid.uuid4())
+
+    item_callbacks = [change_id_to_uuid]
+
+  Each callback function accepts three arguments: the URL of the feed,
+  the new entry as processed by feedparser, and the river.js formatted
+  object.
+
+  river_item is passed by reference, so any changes to that object
+  will be reflected on output.
+
+  For each new entry found when a feed is parsed, mkrivers will cycle
+  through each callback found in `item_callbacks`, in order.
+
 - v0.8: Add remote source list support.
 
   You can now pass remote source lists and mkrivers will include any
@@ -82,6 +106,5 @@ format.
   - flask frontend with a JSON config file?
 - track counter in pickle, too
 - include guids in source cache too? to prevent same entry from two different feeds from appearing?
-- include callback system
 - add ability to insert images
 - add comments URL to feed updates

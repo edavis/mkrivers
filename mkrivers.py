@@ -26,7 +26,7 @@ logging.basicConfig(
 )
 logging.getLogger('requests').setLevel(logging.WARNING)
 
-__version__ = '0.8'
+__version__ = '0.9'
 
 FEED_CHECK_INITIAL = (5, 30*60)    # min/max seconds before first check
 FEED_CHECK_REGULAR = (15*60, 60*60) # min/max seconds for next check, after first check
