@@ -109,6 +109,7 @@ class WebFeed(object):
             'feedDescription': parsed.feed.get('description', ''),
             'websiteUrl': parsed.feed.get('link', ''),
             'whenLastUpdate': arrow.utcnow().format(RIVER_TIME_FMT),
+            'item': [],
         }
 
     def build_item_portion(self, entry):
@@ -137,15 +138,20 @@ class WebFeed(object):
         river_obj = self.build_feed_portion(parsed)
         item_obj = []
 
+        try:
+            import callbacks
+        except ImportError as e:
+            logging.debug('could not load callbacks: %s' % e)
+
         for entry in parsed.entries:
             fingerprint = entry_fingerprint(entry)
 
             if fingerprint in self.history:
                 continue
 
-            item_ret = self.build_item_portion(entry)
-            if item_ret is not None:
-                item_obj.append(item_ret)
+            item_portion = self.build_item_portion(entry)
+            if item_portion is not None:
+                item_obj.append((item_portion, entry))
 
             self.history.appendleft(fingerprint)
 
@@ -156,13 +162,19 @@ class WebFeed(object):
                 river_obj['feedTitle'] += '*'
                 item_obj = item_obj[:RIVER_FIRST_ITEMS_LIMIT]
 
-            for item in reversed(item_obj):
+            for river_item, entry in reversed(item_obj):
                 with self.source.counter_lock:
                     self.source.counter += 1
 
-                item['id'] = str(self.source.counter).zfill(7)
+                river_item['id'] = str(self.source.counter).zfill(7)
 
-            river_obj['item'] = item_obj
+                try:
+                    for callback in callbacks.item_callbacks:
+                        callback(self.url, entry, river_item)
+                except AttributeError:
+                    pass
+
+                river_obj['item'].insert(0, river_item)
 
             self.source.struct.appendleft(river_obj)
             self.source.dirty = True
@@ -255,6 +267,7 @@ class Source(object):
         self.struct = self.read_pickle()
         self.dirty = False
         self.counter_lock = threading.Lock()
+        self.started = arrow.utcnow()
 
         self.misc_timers = {
             'write_river': create_timer(self.write_river, RIVER_WRITE_INTERVAL),
@@ -381,8 +394,7 @@ class Source(object):
             },
             'metadata': {
                 'docs': 'http://riverjs.org/',
-                'secs': '',
-                'version': '3',
+                'whenStarted': self.started.format(RIVER_TIME_FMT),
                 'whenGMT': arrow.utcnow().format(RIVER_TIME_FMT),
                 'whenLocal': arrow.now().format(RIVER_TIME_FMT),
                 'aggregator': 'mkrivers v%s' % __version__,
