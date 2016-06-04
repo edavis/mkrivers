@@ -41,13 +41,30 @@ RIVER_CACHE_DIR = '.mkrivers'      # where to store feed history
 RIVER_FIRST_ITEMS_LIMIT = 5        # number of items to include on first run
 RIVER_TIME_FMT = 'ddd, DD MMMM YYYY HH:mm:ss Z'
 
+class state(object):
+    "Helper class to manage the state of feeds and rivers"
+    def __init__(self, fname):
+        self.fname = fname
+
+    def write(self, obj):
+        with open(self.fname, 'wb') as fp:
+            cPickle.dump(obj, fp)
+
+    def read(self, default):
+        try:
+            with open(self.fname, 'rb') as fp:
+                return cPickle.load(fp)
+        except (EOFError, IOError, cPickle.UnpicklingError):
+            return default
+
 class WebFeed(object):
     def __init__(self, url, source):
         self.url = url
         self.source = source
         self.request_headers = {}
         self.checks = 0
-        self.history = self.read_pickle()
+        self.history_state = state(self.pickle_path())
+        self.history = self.history_state.read(default=deque(maxlen=RIVER_UPDATES_LIMIT))
         self.status_codes = Counter()
 
     def check(self):
@@ -65,7 +82,7 @@ class WebFeed(object):
             self.checks += 1
             self.check_feed_health()
             self.schedule_next_check()
-            self.write_pickle(self.history)
+            self.history_state.write(self.history)
 
     def request_feed(self):
         "Make HTTP request for feed URL"
@@ -228,9 +245,6 @@ class WebFeed(object):
         new_timer = create_timer(self.check, interval, self.url)
         self.source.timers[self.url] = new_timer
 
-    ###########################################################################
-    # Pickle utilities
-
     def pickle_path(self):
         "Where to store pickle object for this feed"
         if not os.path.isdir(self.source.source_cache):
@@ -238,18 +252,6 @@ class WebFeed(object):
 
         fname = urllib.quote(self.url, safe='')
         return os.path.join(self.source.source_cache, fname) + '.pkl'
-
-    def write_pickle(self, obj):
-        with open(self.pickle_path(), 'w') as fp:
-            return cPickle.dump(obj, fp)
-
-    def read_pickle(self):
-        "Return history from pickle object or create it anew"
-        try:
-            with open(self.pickle_path()) as fp:
-                return cPickle.load(fp)
-        except (EOFError, IOError, cPickle.UnpicklingError):
-            return deque(maxlen=RIVER_UPDATES_LIMIT)
 
     def log(self, msg, level='debug'):
         prefix = '(%s) %s' % (path_basename(self.source.fname), self.url)
@@ -265,7 +267,8 @@ class Source(object):
         self.timers = {}
         self.stopped = threading.Event()
         self.source_cache = os.path.join(RIVER_CACHE_DIR, path_basename(fname))
-        self.struct = self.read_pickle()
+        self.struct_state = state(self.pickle_path())
+        self.struct = self.struct_state.read(default=deque(maxlen=RIVER_UPDATES_LIMIT))
         self.dirty = False
         self.counter_lock = threading.Lock()
         self.counter = 0
@@ -411,12 +414,9 @@ class Source(object):
             fp.flush()
             os.fsync(fp.fileno())
 
-        self.write_pickle(self.struct)
+        self.struct_state.write(self.struct)
         self.dirty = False
         self.misc_timers['write_river'] = create_timer(self.write_river, RIVER_WRITE_INTERVAL)
-
-    ###########################################################################
-    # Pickle utilities
 
     def pickle_path(self):
         "Where to store pickle object for this river"
@@ -425,17 +425,6 @@ class Source(object):
 
         fname = path_basename(self.output)
         return os.path.join(self.source_cache, fname) + '.pkl'
-
-    def write_pickle(self, obj):
-        with open(self.pickle_path(), 'w') as fp:
-            return cPickle.dump(obj, fp)
-
-    def read_pickle(self):
-        try:
-            with open(self.pickle_path()) as fp:
-                return cPickle.load(fp)
-        except (EOFError, IOError, cPickle.UnpicklingError):
-            return deque(maxlen=RIVER_UPDATES_LIMIT)
 
 def create_timer(func, interval, name=None, args=[], kwargs={}):
     "Return daemonized Timer object"
