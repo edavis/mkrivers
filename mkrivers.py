@@ -169,8 +169,13 @@ class WebFeed(object):
 
         for entry in parsed.entries:
             fingerprint = entry_fingerprint(entry)
+            source_fingerprint = entry.get('guid') or entry.get('link')
 
             if fingerprint in self.history:
+                continue
+
+            if source_fingerprint is not None and source_fingerprint in self.source.history:
+                self.log('skipping as already in source: %s' % source_fingerprint)
                 continue
 
             item_portion = self.build_item_portion(entry)
@@ -178,6 +183,7 @@ class WebFeed(object):
                 item_obj.append((item_portion, entry))
 
             self.history.appendleft(fingerprint)
+            self.source.history.appendleft(source_fingerprint)
 
         if item_obj:
             self.log('found %s new items' % len(item_obj))
@@ -269,6 +275,7 @@ class Source(object):
         self.source_cache = os.path.join(RIVER_CACHE_DIR, path_basename(fname))
         self.struct_state = state(self.pickle_path())
         self.struct = self.struct_state.read(default=deque(maxlen=RIVER_UPDATES_LIMIT))
+        self.history = deque(maxlen=RIVER_UPDATES_LIMIT)
         self.dirty = False
         self.counter_lock = threading.Lock()
         self.counter = 0
