@@ -119,6 +119,9 @@ class WebFeed(object):
             'pubDate': entry_timestamp(entry).format(RIVER_TIME_FMT),
         }
 
+        if entry.get('comments'):
+            obj['comments'] = entry.get('comments')
+
         text_info = entry_text(entry)
         if text_info is not None:
             obj.update(text_info)
