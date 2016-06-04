@@ -255,8 +255,6 @@ class WebFeed(object):
         func(msg)
 
 class Source(object):
-    counter = 0
-
     def __init__(self, fname, output):
         self.fname = fname
         self.output = output
@@ -267,6 +265,7 @@ class Source(object):
         self.struct = self.read_pickle()
         self.dirty = False
         self.counter_lock = threading.Lock()
+        self.counter = 0
         self.started = arrow.utcnow()
 
         self.misc_timers = {
