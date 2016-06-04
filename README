@@ -104,7 +104,3 @@ format.
   - maybe use a proper JS frontend library?
 - include easy way to navigate between different rivers
   - flask frontend with a JSON config file?
-- track counter in pickle, too
-- include guids in source cache too? to prevent same entry from two different feeds from appearing?
-- add ability to insert images
-- add comments URL to feed updates
