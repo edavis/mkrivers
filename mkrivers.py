@@ -127,6 +127,15 @@ class WebFeed(object):
 
         return obj
 
+    def run_callbacks(self, entry, river_item):
+        try:
+            import callbacks
+        except ImportError:
+            pass
+        else:
+            for callback in callbacks.item_callbacks:
+                callback(self.url, entry, river_item)
+
     def process_response(self, response):
         if response is None:
             self.log('feed returned 304, skipping')
@@ -137,11 +146,6 @@ class WebFeed(object):
 
         river_obj = self.build_feed_portion(parsed)
         item_obj = []
-
-        try:
-            import callbacks
-        except ImportError as e:
-            logging.debug('could not load callbacks: %s' % e)
 
         for entry in parsed.entries:
             fingerprint = entry_fingerprint(entry)
@@ -168,11 +172,7 @@ class WebFeed(object):
 
                 river_item['id'] = str(self.source.counter).zfill(7)
 
-                try:
-                    for callback in callbacks.item_callbacks:
-                        callback(self.url, entry, river_item)
-                except AttributeError:
-                    pass
+                self.run_callbacks(entry, river_item)
 
                 river_obj['item'].insert(0, river_item)
 
