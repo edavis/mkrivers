@@ -1,0 +1,80 @@
+@import url(//brick.a.ssl.fastly.net/Lora:400/Ubuntu:400,700);
+
+body {
+    background-color: whitesmoke;
+    margin: 0;
+}
+
+a {
+    color: #1E68A6;
+    text-decoration: none;
+}
+
+#app {
+    padding: 20px;
+}
+
+.riverList {
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 30px;
+    border: thin solid #bbb;
+    max-width: 600px;
+    background-color: white;
+}
+
+@media (min-width: 600px) {
+    .riverList {
+        padding: 40px;
+    }
+}
+
+.riverFeed {
+    border-top: thin solid #bbb;
+    padding: 10px 0;
+}
+
+.riverHeader {
+    margin: -17px 0 30px 0;
+    font: .75em 'Ubuntu', sans-serif;
+}
+
+.feedInfo {
+    float: left;
+    background: white;
+    padding-right: 5px;
+}
+
+.favicon {
+    position: relative;
+    top: -1px;
+    vertical-align: middle;
+    padding-right: 4px;
+}
+
+.updateInfo {
+    display: block;
+    float: right;
+    background: white;
+    padding-left: 5px;
+}
+
+.riverItems {
+    margin: 15px 0 25px 0;
+}
+
+.riverItem {
+    font: 1em/1.4 'Lora', serif;
+    margin-bottom: 20px;
+}
+
+.itemTitle {
+    font: bold 18px/1.2 'Ubuntu', sans-serif;
+    margin-bottom: 10px;
+}
+
+.itemMeta {
+    color: #888;
+    margin-top: 10px;
+    font-size: .8em;
+}
