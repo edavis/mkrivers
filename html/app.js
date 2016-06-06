@@ -8,6 +8,13 @@ function getFavicon(url) {
 
 var RiverList = React.createClass({
     fetchRiver: function() {
+        // Skip update if user has scrolled down any. This prevents
+        // the river from jumping around with new updates as you try
+        // to read it.
+        if (window.scrollY > 0) {
+            return;
+        }
+
         $.ajax({
             url: this.props.url,
             dataType: 'jsonp',
