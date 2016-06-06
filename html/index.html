@@ -10,9 +10,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.13.0/moment.min.js"></script>
+    <script>
+      var RiverConfig = {
+          url: 'http://rivers.rsshub.org/ejd.js',
+          poll: 60,
+          mount: 'app'
+      }
+    </script>
     <script type="text/babel" src="http://assets.rsshub.org/app.js"></script>
   </head>
   <body>
-    <div data-url="/path/to/river.js" data-poll="60" id="app"></div>
+    <div id="app"></div>
   </body>
 </html>

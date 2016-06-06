@@ -88,11 +88,7 @@ var RiverItem = React.createClass({
     }
 });
 
-$(function() {
-    var url = $('#app').data('url');
-    var poll = $('#app').data('poll');
-    ReactDOM.render(
-        <RiverList url={url} pollInterval={poll*1000} />,
-        document.getElementById('app')
-    );
-});
+ReactDOM.render(
+    <RiverList url={RiverConfig.url} pollInterval={RiverConfig.poll * 1000} />,
+    document.getElementById(RiverConfig.mount)
+);
