@@ -25,6 +25,10 @@ format.
 
 ## Changelog
 
+- v0.10: New frontend and general improvements.
+
+  Inside html/ is a new ReactJS powered frontend to view river.js files.
+
 - v0.9: Add callback system.
 
   Callbacks can be used to do some feed-specific processing on new
@@ -100,7 +104,5 @@ format.
 
 ## TODO
 - make it easy to create HTML pages
-- customize riverBrowser.js
-  - maybe use a proper JS frontend library?
 - include easy way to navigate between different rivers
   - flask frontend with a JSON config file?
