@@ -20,12 +20,8 @@ def entry_timestamp(entry):
         obj = entry[key][:6]
         reported = arrow.get(datetime(*obj))
 
-        # Return Jan 1, 1970 if item pubDate is pre-2000
-        if reported < arrow.Arrow(2000, 1, 1):
-            return arrow.Arrow(1970, 1, 1)
-
-        # Return reported pubDate only if in the past (i.e., nothing in future)
-        elif reported < arrow.utcnow():
+        # Return reported date if greater than 2000-01-01 and not in the future
+        if arrow.Arrow(2000, 1, 1) < reported < arrow.utcnow():
             return reported
 
     # If all else fails, return current UTC as pubDate
