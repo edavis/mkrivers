@@ -388,17 +388,33 @@ class Source(object):
 
         self.urls = list(new_urls)
 
-        self.misc_timers['watch_input'] = create_timer(self.watch_input, WATCH_INPUT_INTERVAL)
+        self.schedule_watch_input()
 
     def insert_update(self, update):
         self.source.struct.appendleft(update)
         self.source.dirty = True
 
+    def serialize_struct(self, fp, obj):
+        "Serialize struct to JSON and write to output."
+
+        fp.write('onGetRiverStream(')
+        json.dump(obj, fp, indent=2, sort_keys=True)
+        fp.write(')\n')
+
+        fp.flush()
+        os.fsync(fp.fileno())
+
+    def schedule_write_river(self):
+        self.misc_timers['write_river'] = create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+
+    def schedule_watch_input(self):
+        self.misc_timers['watch_input'] = create_timer(self.watch_input, WATCH_INPUT_INTERVAL)
+
     def write_river(self):
         "Generate river.js file"
 
         if not self.dirty:
-            self.misc_timers['write_river'] = create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+            self.schedule_write_river()
             return
 
         if not os.path.isdir(os.path.dirname(self.output)):
@@ -418,16 +434,11 @@ class Source(object):
         }
 
         with open(self.output, 'w') as fp:
-            fp.write('onGetRiverStream(')
-            json.dump(obj, fp, indent=2, sort_keys=True)
-            fp.write(')\n')
-
-            fp.flush()
-            os.fsync(fp.fileno())
+            self.serialize_struct(fp, obj)
 
         self.struct_state.write(self.struct)
         self.dirty = False
-        self.misc_timers['write_river'] = create_timer(self.write_river, RIVER_WRITE_INTERVAL)
+        self.schedule_write_river()
 
     def pickle_path(self):
         "Where to store pickle object for this river"
