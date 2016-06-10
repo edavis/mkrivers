@@ -154,7 +154,9 @@ class WebFeed(object):
             pass
         else:
             for callback in callbacks.item_callbacks:
-                callback(self.url, entry, river_item)
+                river_item = callback(self.url, entry, river_item.copy())
+
+            return river_item
 
     def process_response(self, response):
         if response is None:
@@ -180,7 +182,8 @@ class WebFeed(object):
 
             item_portion = self.build_item_portion(entry)
             if item_portion is not None:
-                item_obj.append((item_portion, entry))
+                item_portion = self.run_callbacks(entry, item_portion.copy())
+                item_obj.append(item_portion)
 
             self.history.appendleft(fingerprint)
             self.source.history.appendleft(source_fingerprint)
@@ -192,12 +195,10 @@ class WebFeed(object):
                 river_obj['feedTitle'] += '*'
                 item_obj = item_obj[:RIVER_FIRST_ITEMS_LIMIT]
 
-            for river_item, entry in reversed(item_obj):
+            for river_item in reversed(item_obj):
                 with self.source.counter_lock:
                     self.source.counter += 1
                     river_item['id'] = str(self.source.counter).zfill(7)
-
-                self.run_callbacks(entry, river_item)
 
                 river_obj['item'].insert(0, river_item)
 
