@@ -202,8 +202,8 @@ class WebFeed(object):
 
                 river_obj['item'].insert(0, river_item)
 
-            self.source.struct.appendleft(river_obj)
-            self.source.dirty = True
+            self.source.insert_update(river_obj)
+
         else:
             self.log('no new items found')
 
@@ -243,8 +243,7 @@ class WebFeed(object):
             }],
         }
 
-        self.source.struct.appendleft(update_obj)
-        self.source.dirty = True
+        self.source.insert_update(update_obj)
 
     def schedule_next_check(self):
         "Schedule feed for next check"
@@ -390,6 +389,10 @@ class Source(object):
         self.urls = list(new_urls)
 
         self.misc_timers['watch_input'] = create_timer(self.watch_input, WATCH_INPUT_INTERVAL)
+
+    def insert_update(self, update):
+        self.source.struct.appendleft(update)
+        self.source.dirty = True
 
     def write_river(self):
         "Generate river.js file"
