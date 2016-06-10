@@ -195,8 +195,7 @@ class WebFeed(object):
             for river_item, entry in reversed(item_obj):
                 with self.source.counter_lock:
                     self.source.counter += 1
-
-                river_item['id'] = str(self.source.counter).zfill(7)
+                    river_item['id'] = str(self.source.counter).zfill(7)
 
                 self.run_callbacks(entry, river_item)
 
@@ -223,6 +222,7 @@ class WebFeed(object):
 
         with self.source.counter_lock:
             self.source.counter += 1
+            new_id = self.source.counter
 
         now = arrow.utcnow().format(RIVER_TIME_FMT)
 
@@ -233,7 +233,7 @@ class WebFeed(object):
             'websiteUrl': self.url,
             'whenLastUpdate': now,
             'item': [{
-                'id': str(self.source.counter).zfill(7),
+                'id': str(new_id).zfill(7),
                 'title': 'Error: %s' % self.url,
                 'body': 'Error rate of %.3f after %d checks' % (err_rate, self.checks),
                 'pubDate': now,
