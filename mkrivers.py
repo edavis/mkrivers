@@ -447,12 +447,6 @@ def path_basename(p):
     b, _ = os.path.splitext(b)
     return b
 
-def river_output(filename, output, suffix='.js'):
-    "Return river.js file path from input filename."
-    b = os.path.basename(filename)
-    b, _ = os.path.splitext(b)
-    return os.path.join(output, b) + suffix
-
 def load_sources(args, sources={}):
     current_fnames = glob.glob(args.input + '/*.txt')
     added_fnames = filter(lambda f: f not in sources, current_fnames)
@@ -460,7 +454,7 @@ def load_sources(args, sources={}):
 
     for fname in added_fnames:
         logging.debug('load_sources: adding %s' % fname)
-        output = river_output(fname, args.output)
+        output = os.path.join(args.output, path_basename(fname)) + '.js'
         s = Source(fname, output)
         s.start_feeds()
         sources[fname] = s
