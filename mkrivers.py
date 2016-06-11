@@ -151,12 +151,14 @@ class WebFeed(object):
         try:
             import callbacks
         except ImportError:
-            pass
-        else:
-            for callback in callbacks.item_callbacks:
-                river_item = callback(self.url, entry, river_item.copy())
+            return
 
-            return river_item
+        try:
+            for callback in callbacks.item_callbacks:
+                callback(self.url, entry, river_item)
+        except AttributeError:
+            logging.debug('callbacks.py found, but no item_callbacks list')
+            return
 
     def process_response(self, response):
         if response is None:
@@ -182,7 +184,7 @@ class WebFeed(object):
 
             item_portion = self.build_item_portion(entry)
             if item_portion is not None:
-                item_portion = self.run_callbacks(entry, item_portion.copy())
+                self.run_callbacks(entry, item_portion)
                 item_obj.append(item_portion)
 
             self.history.appendleft(fingerprint)
