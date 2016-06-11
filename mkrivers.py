@@ -393,8 +393,8 @@ class Source(object):
         self.schedule_watch_input()
 
     def insert_update(self, update):
-        self.source.struct.appendleft(update)
-        self.source.dirty = True
+        self.struct.appendleft(update)
+        self.dirty = True
 
     def serialize_struct(self, fp, obj):
         "Serialize struct to JSON and write to output."
