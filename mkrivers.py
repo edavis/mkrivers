@@ -41,7 +41,7 @@ RIVER_UPDATES_LIMIT = 300          # number of feed updates to include
 RIVER_WRITE_INTERVAL = 60          # write river files every N seconds
 RIVER_CACHE_DIR = '.mkrivers'      # where to store feed history
 RIVER_FIRST_ITEMS_LIMIT = 5        # number of items to include on first run
-RIVER_TIME_FMT = 'ddd, DD MMMM YYYY HH:mm:ss Z'
+RIVER_TIME_FMT = 'ddd, DD MMM YYYY HH:mm:ss Z'
 
 class WebFeed(object):
     def __init__(self, url, source):
