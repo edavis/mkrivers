@@ -322,7 +322,8 @@ class Source(object):
         sqlite_fname = os.path.join(RIVER_CACHE_DIR, path_basename(self.fname)) + '.db'
         self.conn = sqlite3.connect(sqlite_fname, check_same_thread=False)
         self.db_lock = threading.Lock()
-        self.execute_sql('create table if not exists history (id integer primary key, feed_url text, pub_date text, added text, fingerprint text);')
+        self.execute_sql("create table if not exists history (id integer primary key, feed_url text, pub_date text, added text default (strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now')), fingerprint text);")
+        self.execute_sql('create index if not exists feed_fingerprint_idx on history (feed_url, fingerprint);')
         self.execute_sql('create index if not exists fingerprint_idx on history (fingerprint);')
         self.execute_sql('create table if not exists cache (key text primary key, value blob);')
 
@@ -377,19 +378,23 @@ class Source(object):
         "Whether to include the parsed feed entry in the source."
         pub_date = entry_timestamp(entry)
         fingerprint = entry.get('guid') or entry.get('link')
+
         if not fingerprint:
+            # If neither of the above, make it something unique that
+            # won't ever be seen again.
             fingerprint = str(uuid.uuid4())
 
-        # First, check if we've already seen this fingerprint.
-        (count,) = self.execute_sql('select count(*) from history where fingerprint = ?', [fingerprint])
+        (fingerprint_count,) = self.execute_sql('select count(*) from history where fingerprint = ?', [fingerprint])
+        new_entry = int(fingerprint_count) == 0
 
-        # Then, insert it into the history table. We do this so the
-        # history table accurately reflects all seen feed entries.
-        self.execute_sql('insert into history (feed_url, pub_date, fingerprint, added) values (?, ?, ?, strftime("%Y-%m-%dT%H:%M:%f+00:00", "now"))', [feed_url, str(pub_date), fingerprint])
+        # A fingerprint may already exist, but it may belong to
+        # another feed.  With this, always add each fingerprint to
+        # each feed even if it doesn't make it into the river.
+        (feed_fingerprint_count,) = self.execute_sql('select count(*) from history where feed_url = ? and fingerprint = ?', [feed_url, fingerprint])
+        if int(feed_fingerprint_count) == 0:
+            self.execute_sql('insert into history (feed_url, pub_date, fingerprint) values (?, ?, ?)', [feed_url, str(pub_date), fingerprint])
 
-        # Finally, return True if the fingerprint wasn't in the table
-        # when we first started.
-        return int(count) == 0
+        return new_entry
 
     def insert_update(self, update):
         self.struct.appendleft(update)
