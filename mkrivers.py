@@ -77,8 +77,6 @@ class WebFeed(object):
         headers.update(default_headers)
         headers.update(self.request_headers)
 
-        self.log('requesting feed (headers = %r)' % self.request_headers)
-
         try:
             resp = requests.get(self.url, headers=headers, timeout=FEED_REQUEST_TIMEOUT)
         except (requests.exceptions.RequestException, socket.error):
@@ -227,7 +225,7 @@ class WebFeed(object):
 
     def log(self, msg, level='debug'):
         prefix = '(%s) %s' % (path_basename(self.source.fname), self.url)
-        msg = ('[%-50s] ' % prefix[:50]) + msg
+        msg = ('[%-70s] ' % prefix[:70]) + msg
         func = getattr(logging, level)
         func(msg)
 
