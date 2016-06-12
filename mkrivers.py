@@ -4,12 +4,14 @@ import os
 import glob
 import json
 import time
+import uuid
 import arrow
 import urllib
 import socket
 import random
 import logging
 import cPickle
+import sqlite3
 import argparse
 import requests
 import threading
@@ -17,7 +19,7 @@ import feedparser
 from collections import deque, Counter
 from xml.etree import ElementTree as ET
 from entry_utils import (
-    entry_fingerprint, entry_timestamp, entry_text
+    entry_timestamp, entry_text
 )
 
 logging.basicConfig(
@@ -41,30 +43,12 @@ RIVER_CACHE_DIR = '.mkrivers'      # where to store feed history
 RIVER_FIRST_ITEMS_LIMIT = 5        # number of items to include on first run
 RIVER_TIME_FMT = 'ddd, DD MMMM YYYY HH:mm:ss Z'
 
-class state(object):
-    "Helper class to manage the state of feeds and rivers"
-    def __init__(self, fname):
-        self.fname = fname
-
-    def write(self, obj):
-        with open(self.fname, 'wb') as fp:
-            cPickle.dump(obj, fp)
-
-    def read(self, default):
-        try:
-            with open(self.fname, 'rb') as fp:
-                return cPickle.load(fp)
-        except (EOFError, IOError, cPickle.UnpicklingError):
-            return default
-
 class WebFeed(object):
     def __init__(self, url, source):
         self.url = url
         self.source = source
         self.request_headers = {}
         self.checks = 0
-        self.history_state = state(self.pickle_path())
-        self.history = self.history_state.read(default=deque(maxlen=RIVER_UPDATES_LIMIT))
         self.status_codes = Counter()
 
     def check(self):
@@ -82,7 +66,6 @@ class WebFeed(object):
             self.checks += 1
             self.check_feed_health()
             self.schedule_next_check()
-            self.history_state.write(self.history)
 
     def request_feed(self):
         "Make HTTP request for feed URL"
@@ -157,7 +140,6 @@ class WebFeed(object):
             for callback in callbacks.item_callbacks:
                 callback(self.url, entry, river_item)
         except AttributeError:
-            logging.debug('callbacks.py found, but no item_callbacks list')
             return
 
     def process_response(self, response):
@@ -171,24 +153,14 @@ class WebFeed(object):
         river_obj = self.build_feed_portion(parsed)
         item_obj = []
 
-        for entry in parsed.entries:
-            fingerprint = entry_fingerprint(entry)
-            source_fingerprint = entry.get('guid') or entry.get('link')
-
-            if fingerprint in self.history:
-                continue
-
-            if source_fingerprint is not None and source_fingerprint in self.source.history:
-                self.log('skipping as already in source: %s' % source_fingerprint)
+        for entry in sorted(parsed.entries, key=lambda e: entry_timestamp(e)):
+            if not self.source.include_entry(self.url, entry):
                 continue
 
             item_portion = self.build_item_portion(entry)
             if item_portion is not None:
                 self.run_callbacks(entry, item_portion)
-                item_obj.append(item_portion)
-
-            self.history.appendleft(fingerprint)
-            self.source.history.appendleft(source_fingerprint)
+                item_obj.insert(0, item_portion)
 
         if item_obj:
             self.log('found %s new items' % len(item_obj))
@@ -253,14 +225,6 @@ class WebFeed(object):
         new_timer = create_timer(self.check, interval, self.url)
         self.source.timers[self.url] = new_timer
 
-    def pickle_path(self):
-        "Where to store pickle object for this feed"
-        if not os.path.isdir(self.source.source_cache):
-            os.makedirs(self.source.source_cache)
-
-        fname = urllib.quote(self.url, safe='')
-        return os.path.join(self.source.source_cache, fname) + '.pkl'
-
     def log(self, msg, level='debug'):
         prefix = '(%s) %s' % (path_basename(self.source.fname), self.url)
         msg = ('[%-50s] ' % prefix[:50]) + msg
@@ -274,14 +238,13 @@ class Source(object):
         self.urls = list(self.read_urls())
         self.timers = {}
         self.stopped = threading.Event()
-        self.source_cache = os.path.join(RIVER_CACHE_DIR, path_basename(fname))
-        self.struct_state = state(self.pickle_path())
-        self.struct = self.struct_state.read(default=deque(maxlen=RIVER_UPDATES_LIMIT))
-        self.history = deque(maxlen=RIVER_UPDATES_LIMIT)
         self.dirty = False
         self.counter_lock = threading.Lock()
         self.counter = 0
         self.started = arrow.utcnow()
+
+        self.init_database()
+        self.struct = self.read_struct()
 
         self.misc_timers = {
             'write_river': create_timer(self.write_river, RIVER_WRITE_INTERVAL),
@@ -345,6 +308,26 @@ class Source(object):
 
         return read_local_txt(self.fname)
 
+    def execute_sql(self, statement, params=[]):
+        "Execute a SQL statement against the database within a transaction"
+        if self.stopped.is_set():
+            return
+
+        with self.db_lock:
+            cursor = self.conn.cursor()
+            with self.conn:
+                cursor.execute(statement, params)
+            return cursor.fetchone()
+
+    def init_database(self):
+        "Initialize the sqlite3 database"
+        sqlite_fname = os.path.join(RIVER_CACHE_DIR, path_basename(self.fname)) + '.db'
+        self.conn = sqlite3.connect(sqlite_fname, check_same_thread=False)
+        self.db_lock = threading.Lock()
+        self.execute_sql('create table if not exists history (id integer primary key, feed_url text, pub_date text, added text, fingerprint text);')
+        self.execute_sql('create index if not exists fingerprint_idx on history (fingerprint);')
+        self.execute_sql('create table if not exists cache (key text primary key, value blob);')
+
     def start_feeds(self):
         for url in self.urls:
             self.start_feed(url)
@@ -392,9 +375,44 @@ class Source(object):
 
         self.schedule_watch_input()
 
+    def include_entry(self, feed_url, entry):
+        "Whether to include the parsed feed entry in the source."
+        pub_date = entry_timestamp(entry)
+        fingerprint = entry.get('guid') or entry.get('link')
+        if not fingerprint:
+            fingerprint = str(uuid.uuid4())
+
+        # First, check if we've already seen this fingerprint.
+        (count,) = self.execute_sql('select count(*) from history where fingerprint = ?', [fingerprint])
+
+        # Then, insert it into the history table. We do this so the
+        # history table accurately reflects all seen feed entries.
+        self.execute_sql('insert into history (feed_url, pub_date, fingerprint, added) values (?, ?, ?, strftime("%Y-%m-%dT%H:%M:%f+00:00", "now"))', [feed_url, str(pub_date), fingerprint])
+
+        # Finally, return True if the fingerprint wasn't in the table
+        # when we first started.
+        return int(count) == 0
+
     def insert_update(self, update):
         self.struct.appendleft(update)
         self.dirty = True
+
+    def read_struct(self):
+        result = self.execute_sql('select value from cache where key = "struct"')
+
+        if result is None or result == '':
+            return deque(maxlen=RIVER_UPDATES_LIMIT)
+
+        (data,) = result
+
+        try:
+            return cPickle.loads(str(data))
+        except cPickle.UnpicklingError:
+            return deque(maxlen=RIVER_UPDATES_LIMIT)
+
+    def write_struct(self, obj):
+        pkl = cPickle.dumps(obj)
+        self.execute_sql('insert or replace into cache (key, value) values ("struct", ?)', [sqlite3.Binary(pkl)])
 
     def serialize_struct(self, fp, obj):
         "Serialize struct to JSON and write to output."
@@ -438,17 +456,9 @@ class Source(object):
         with open(self.output, 'w') as fp:
             self.serialize_struct(fp, obj)
 
-        self.struct_state.write(self.struct)
+        self.write_struct(self.struct)
         self.dirty = False
         self.schedule_write_river()
-
-    def pickle_path(self):
-        "Where to store pickle object for this river"
-        if not os.path.isdir(self.source_cache):
-            os.makedirs(self.source_cache)
-
-        fname = path_basename(self.output)
-        return os.path.join(self.source_cache, fname) + '.pkl'
 
 def create_timer(func, interval, name=None, args=[], kwargs={}):
     "Return daemonized Timer object"
