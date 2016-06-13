@@ -1,4 +1,4 @@
-@import url(//brick.a.ssl.fastly.net/Lora:400/Ubuntu:400,700);
+@import url(//brick.a.ssl.fastly.net/Lora:400/Ubuntu:400,700/Bitter:700);
 
 body {
     background-color: whitesmoke;
@@ -14,9 +14,27 @@ a {
     padding: 20px;
 }
 
+.riverContainer h1 {
+    font: bold 56px 'Bitter', monospace;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.riverMenu {
+    background: white;
+    padding: 20px;
+    box-sizing: border-box;
+    border: thin solid #bbb;
+    margin-bottom: 10px;
+}
+
+.riverMenu ul {
+    padding-left: 30px;
+    margin: 0;
+}
+
 .riverList {
     box-sizing: border-box;
-    margin: 0 auto;
     padding: 30px;
     border: thin solid #bbb;
     max-width: 600px;
@@ -26,6 +44,21 @@ a {
 @media (min-width: 600px) {
     .riverList {
         padding: 40px;
+    }
+}
+
+@media (min-width: 1000px) {
+    .riverContainer {
+        width: 1000px;
+        margin: 0 auto;
+    }
+
+    .riverContainer h1 {
+        margin: 40px 0;
+    }
+
+    .riverMenu {
+        float: right;
     }
 }
 
@@ -77,4 +110,9 @@ a {
     color: #888;
     margin-top: 10px;
     font-size: .8em;
+}
+
+.loading {
+    color: #bbb;
+    text-align: center;
 }

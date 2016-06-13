@@ -1,25 +1,39 @@
 <!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="http://assets.rsshub.org/app.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.1.0/react.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.1.0/react-dom.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.13.0/moment.min.js"></script>
-    <script>
-      var RiverConfig = {
-          url: 'http://rivers.rsshub.org/leaderboard.js',
-          poll: 60,
-          mount: 'app'
-      }
-    </script>
-    <script type="text/babel" src="http://assets.rsshub.org/app.js"></script>
-  </head>
-  <body>
-    <div id="app"></div>
-  </body>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="app.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.1.0/react.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.1.0/react-dom.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.13.0/moment.min.js"></script>
+        <script>
+            var RiverConfig = {
+                sources: [
+                    'http://rivers.rsshub.org/ejd.js',
+                    'http://rivers.rsshub.org/news.js',
+                    'http://rivers.rsshub.org/wordpress.js',
+                    'http://rivers.rsshub.org/hn.js',
+                    'http://rivers.rsshub.org/nba.js',
+                    'http://rivers.rsshub.org/nyt.js',
+                    'http://radio3.io/rivers/iowa.js',
+                    'http://radio3.io/rivers/tech.js',
+                    'http://radio3.io/rivers/nytRiver.js',
+                    'http://radio3.io/rivers/world.js',
+                    'http://radio3.io/rivers/nba.js',
+                    'http://radio3.io/rivers/movies.js',
+                    'http://radio3.io/rivers/politics.js',
+                ],
+                poll: 60,
+                mount: 'app'
+            }
+        </script>
+        <script type="text/babel" src="app.js"></script>
+    </head>
+    <body>
+        <div id="app"></div>
+    </body>
 </html>

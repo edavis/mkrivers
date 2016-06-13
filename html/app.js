@@ -3,7 +3,15 @@
 function getFavicon(url) {
     var a = document.createElement('a');
     a.href = url;
-    return ("http://www.google.com/s2/favicons?domain=" + a.hostname);
+    return ("http://www.google.com/s2/favicons?domain=" + (a.hostname || 'example.com'));
+}
+
+function parseWhen(s) {
+    var formats = [
+        'ddd, DD MMM YYYY HH:mm:ss ZZ',
+        'ddd, DD MMM YYYY HH:mm:ss Z',
+    ];
+    return moment.utc(s, formats).local();
 }
 
 var RiverList = React.createClass({
@@ -16,35 +24,51 @@ var RiverList = React.createClass({
         }
 
         $.ajax({
-            url: this.props.url,
+            url: this.state.url,
             dataType: 'jsonp',
             jsonp: false,
             jsonpCallback: 'onGetRiverStream',
             success: function(data) {
-                console.log(this.props.url, 'success');
+                console.log(this.state.url, 'success');
                 this.setState({feeds: data.updatedFeeds.updatedFeed});
             }.bind(this),
             error: function(xhr, status, err) {
-                console.error(this.props.url, status, err.toString());
+                console.error(this.state.url, status, err.toString());
             }.bind(this)
         });
     },
+    changeSource: function(newUrl) {
+        this.setState({feeds: [], url: newUrl}, function() {
+            this.fetchRiver();
+        });
+    },
     getInitialState: function() {
-        return {feeds: []};
+        return {feeds: [], url: this.props.sources[0]};
     },
     componentDidMount: function() {
         this.fetchRiver();
-        setInterval(this.fetchRiver, this.props.pollInterval);
+        setInterval(this.fetchRiver, this.props.poll * 1000);
     },
     render: function() {
+        var that = this;
         var feeds = this.state.feeds.map(function(feed) {
-            return (
-                <RiverFeed key={feed.whenLastUpdate + feed.feedUrl} feed={feed} />
-            );
+            return <RiverFeed key={feed.whenLastUpdate + feed.feedUrl} feed={feed} />;
         });
+        var sources = this.props.sources.map(function(source) {
+            return <li><a href="javascript:void(0);" onClick={() => that.changeSource(source)}>{source}</a></li>;
+        });
+        var loading = <div className="loading"><p>Loading&hellip;</p><img src="ajax-loader.gif"></img></div>;
         return (
-            <div className="riverList">
-                {feeds}
+            <div className="riverContainer">
+                <h1>rsshub.org</h1>
+                <nav className="riverMenu">
+                    <ul id="menu">
+                        {sources}
+                    </ul>
+                </nav>
+                <div className="riverList">
+                    {this.state.feeds.length ? feeds : loading}
+                </div>
             </div>
         );
     }
@@ -57,7 +81,7 @@ var RiverFeed = React.createClass({
                 <RiverItem key={item.id} item={item} />
             );
         });
-        var whenLastUpdate = moment(this.props.feed.whenLastUpdate, 'ddd, DD MMMM YYYY HH:mm:ss ZZ').format('h:mm A; DD MMM');
+        var whenLastUpdate = parseWhen(this.props.feed.whenLastUpdate).format('h:mm A; DD MMM');
         var favicon = getFavicon(this.props.feed.websiteUrl);
         return (
             <div className="riverFeed">
@@ -81,10 +105,10 @@ var RiverFeed = React.createClass({
 
 var RiverItem = React.createClass({
     render: function() {
-        var whenAgo = moment(this.props.item.pubDate, 'ddd, DD MMMM YYYY HH:mm:ss ZZ').fromNow();
+        var whenAgo = parseWhen(this.props.item.pubDate).fromNow();
         return (
             <div className="riverItem">
-                <div className="itemTitle"><a target="_blank" href={this.props.item.link}>{this.props.item.title}</a></div>
+                <div className="itemTitle"><a target="_blank" href={this.props.item.link}>{this.props.item.title || this.props.item.body}</a></div>
                 <div className="itemBody">{this.props.item.body}</div>
                 <div className="itemMeta">
                     <span className="whenAgo">{whenAgo}</span>
@@ -96,6 +120,6 @@ var RiverItem = React.createClass({
 });
 
 ReactDOM.render(
-    <RiverList url={RiverConfig.url} pollInterval={RiverConfig.poll * 1000} />,
+    <RiverList sources={RiverConfig.sources} poll={RiverConfig.poll} />,
     document.getElementById(RiverConfig.mount)
 );
