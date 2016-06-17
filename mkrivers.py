@@ -409,7 +409,14 @@ class Source(object):
         (data,) = result
 
         try:
-            return cPickle.loads(str(data))
+            stored_deque = cPickle.loads(str(data))
+            if stored_deque.maxlen != RIVER_UPDATES_LIMIT:
+                logging.debug('updating struct length: old = %d, new = %d' % (stored_deque.maxlen, RIVER_UPDATES_LIMIT))
+                new_deque = deque(maxlen=RIVER_UPDATES_LIMIT)
+                new_deque.extendleft(reversed(stored_deque))
+                return new_deque
+            else:
+                return stored_deque
         except cPickle.UnpicklingError:
             return deque(maxlen=RIVER_UPDATES_LIMIT)
 
